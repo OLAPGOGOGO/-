@@ -1,0 +1,79 @@
+-- Step1 建表
+CREATE TABLE tran_db.xgboost_relation_alp_trans_temp (
+ id STRING
+,id_num STRING
+,apply_no STRING
+,apply_time TIMESTAMP
+,request_id STRING
+,batch_no STRING
+,batch_time TIMESTAMP
+,insert_time TIMESTAMP
+)PARTITIONED BY (dmonth STRING);
+
+--Step2跑全部insert
+--train样本从2015年12月开始跑，oot样本从2017年6月开始跑
+INSERT OVERWRITE table tran_db.xgboost_relation_alp_trans_temp PARTITION(dmonth='201601')
+SELECT t2.id ,
+        t2.id_no AS id_num ,
+        t1.apply_no ,
+        t1.create_time AS apply_time ,
+        t4.apply_no AS request_id ,
+        t4.batch_no ,
+        t4.batch_time ,
+        t4.insert_time FROM
+    (SELECT tt1.apply_no,
+        tt1.create_time,
+        tt2.user_id
+    FROM jiea.p_loan tt1
+    INNER JOIN qianzhan_ma.olap_xgboost_train tt2
+        ON tt1.apply_no=tt2.apply_no
+    WHERE tt1.create_time>='2016-01-01 00:00:00'
+            AND tt1.create_time<'2016-02-01 00:00:00') t1
+LEFT JOIN openline.credit_app_customer t2
+    ON t2.id = t1.user_id
+LEFT JOIN crawler_db_original_new.crawler_alipay_trans_info t4
+    ON t2.apply_no=t4.apply_no
+WHERE t1.create_time >= t4.insert_time
+GROUP BY  t2.id,t2.id_no,t1.apply_no,t1.create_time,t4.apply_no,t4.batch_no,t4.batch_time,t4.insert_time;
+
+-- 11月的2.0样例
+INSERT INTO tran_db.xgboost_relation_alp_trans_temp PARTITION(dmonth='201611')
+SELECT t2.id ,
+         t2.id_no AS id_num ,
+         t1.apply_no ,
+         t1.create_time AS apply_time ,
+         t4.apply_no AS request_id ,
+         t4.batch_no ,
+         t4.batch_time ,
+         t4.insert_time FROM
+    (SELECT tt1.apply_no,
+         tt1.create_time,
+         tt1.user_id
+    FROM jiea.p_loan tt1
+    INNER JOIN qianzhan_ma.olap_xgboost_train tt2
+        ON tt1.apply_no=tt2.apply_no
+    WHERE tt1.create_time>='2016-11-01'
+            AND tt1.create_time<'2016-12-01' ) t1
+LEFT JOIN openline.credit_app_customer t2
+    ON t2.id = t1.user_id
+LEFT JOIN openline.credit_app_crawler_apply_no t3
+    ON t3.apply_no = t2.apply_no
+LEFT JOIN crawler_db_original_new.crawler_alipay_trans_info t4
+    ON t3.crawler_apply_no=t4.apply_no
+WHERE t1.create_time >= t3.update_time
+        AND t1.create_time >= t4.insert_time
+        AND t3.status = 1
+        AND credit_type='alipay'
+GROUP BY  t2.id,t2.id_no,t1.apply_no,t1.create_time,t4.apply_no,t4.batch_no,t4.batch_time,t4.insert_time;
+--alipay在10.21~2.28记得加淘宝
+
+--Step3 找到最大batch下的最大insert_time
+DROP table crawler_db.xgboost_relation_alp_trans;
+CREATE table crawler_db.xgboost_relation_alp_trans
+as
+SELECT t1.id,t1.id_num,t1.apply_no,t3.batch_no as last_batch_no,last_batch_time,last_insert_time
+FROM tran_db.xgboost_relation_alp_trans_temp t1
+INNER JOIN (SELECT apply_no,max(batch_time)as last_batch_time FROM tran_db.xgboost_relation_alp_trans_temp group by apply_no) t2 
+on t1.apply_no = t2.apply_no AND t1.batch_time=t2.last_batch_time
+INNER JOIN (SELECT batch_no,max(insert_time) as last_insert_time FROM tran_db.xgboost_relation_alp_trans_temp group by batch_no) t3 
+on t1.batch_no = t3.batch_no AND t1.insert_time=t3.last_insert_time;
