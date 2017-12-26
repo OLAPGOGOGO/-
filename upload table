@@ -1,0 +1,21 @@
+-- Upload Table
+-- Step1 文件拖入HUE文件夹
+-- Step2 建表（注意设定分隔符）
+CREATE TABLE tran_db.holmes_alipay_index (
+  idNo STRING,
+  ALPBCIF001 STRING,
+  requestId STRING,
+  schemaVersion STRING,
+  userId STRING
+) row format delimited fields terminated by ',';
+
+--Step3 映射
+load data inpath '/user/fanshuo/sample/alipay_sample.csv' overwrite into table tran_db.holmes_alipay_index;
+
+--Step4 设定编码避免乱码
+ALTER TABLE tran_db.holmes_alipay_index SET SERDEPROPERTIES ('serialization.encoding'='GBK'); 
+
+--Step5 验证
+select * from  tran_db.holmes_alipay_index limit 100;
+
+
