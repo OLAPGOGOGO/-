@@ -1,3 +1,4 @@
+# 关联爬虫表&进件表
 jiea.p_loan t1
 openline.credit_app_customer t2 -- 用户ID, ID_Num
 openline.credit_app_crawler_app_no t3
