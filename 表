@@ -4,3 +4,11 @@ openline.credit_app_customer t2 -- 用户ID, ID_Num
 openline.credit_app_crawler_app_no t3
 t1.user_id = t2.id => t2.apply_no
 t2.apply_no = t3.apply_no => t3.crawler_apply_no
+# 创建表（分区表）
+
+CREATE TABLE tran_db.cjy_test
+(
+id string comment '用户ID',
+id_num string comment 'ID_NUM')
+)PARTITIONED BY (dmonth STRING);
+;
